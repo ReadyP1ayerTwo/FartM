@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <audio id="fartSound"></audio>
+        <script>
+            window.addEventListener('message', function (event) {
+                if (event.data.transactionType === "playSound") {
+                    const audio = document.getElementById("fartSound");
+                    audio.src = "fart.ogg"; // Make sure the file name matches exactly
+                    audio.volume = event.data.soundVolume || 1.0; // Default to full volume if not set
+                    audio.play();
+                }
+            });
+        </script>
+    </body>
+</html>
