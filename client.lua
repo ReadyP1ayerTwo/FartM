@@ -1,41 +1,51 @@
+-- Load configuration
+local Config = Config or {}
 local isHolding = false
 local hasPlayed = false -- Tracks if the effect has already played
-local holdTime = 0 -- 1/2 second
+local holdTime = 500 -- 1/2 second
 local triangleKey = 23 -- INPUT_JUMP (Triangle on PlayStation controllers)
-local explosionForce = 100.0 -- Force applied to nearby entities
-local effectRadius = 15.0 -- Radius for affecting nearby entities
 
 -- Trigger the fart effect: animation, sound, launch, and ragdoll
 function playFartEffect()
     local playerPed = PlayerPedId()
     local coords = GetEntityCoords(playerPed)
 
-    -- Play animation locally
-    RequestAnimDict("misscarsteal2peeing")
-    while not HasAnimDictLoaded("misscarsteal2peeing") do
-        Wait(0)
+    -- Play animation locally (if enabled)
+    if Config.EnableAnimation then
+        RequestAnimDict("misscarsteal2peeing")
+        while not HasAnimDictLoaded("misscarsteal2peeing") do
+            Wait(0)
+        end
+        TaskPlayAnim(playerPed, "misscarsteal2peeing", "peeing_idle", 8.0, -8.0, -1, 1, 0, false, false, false)
     end
-    TaskPlayAnim(playerPed, "misscarsteal2peeing", "peeing_idle", 8.0, -8.0, -1, 1, 0, false, false, false)
 
     -- Notify server to trigger sound and shake effects for nearby players
     TriggerServerEvent("playFartEffectForRadius", coords)
 
-    -- Apply upward force to the player
-    local upwardForce = vector3(0.0, 0.0, 50.0)
-    ApplyForceToEntity(playerPed, 1, upwardForce.x, upwardForce.y, upwardForce.z, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
+    -- Apply upward force to the player (if enabled)
+    if Config.EnableForceToPlayer then
+        local upwardForce = Config.PlayerLaunchForce
+        ApplyForceToEntity(playerPed, 1, upwardForce.x, upwardForce.y, upwardForce.z, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
+    end
 
-    -- Wait a moment before ragdolling
-    Wait(500)
-    SetPedToRagdoll(playerPed, 5000, 5000, 0, true, true, false)
+    -- Ragdoll the player (if enabled)
+    if Config.EnablePlayerRagdoll then
+        Wait(500)
+        SetPedToRagdoll(playerPed, Config.RagdollTime, Config.RagdollTime, 0, true, true, false)
+    end
 
     -- Push nearby vehicles and NPCs in separate threads
-    CreateThread(function()
-        pushNearbyVehicles(coords)
-    end)
+    if Config.EnableVehiclePushing then
+        CreateThread(function()
+            pushNearbyVehicles(coords)
+        end)
+    end
 
-    CreateThread(function()
-        pushNearbyNPCs(coords)
-    end)
+    if Config.EnablePedPushing then
+        CreateThread(function()
+            pushNearbyNPCs(coords)
+        end)
+    end
 end
 
 -- Push nearby vehicles with explosive force
@@ -46,14 +56,14 @@ function pushNearbyVehicles(playerCoords)
         local vehicleCoords = GetEntityCoords(vehicle)
         local distance = #(vehicleCoords - playerCoords)
 
-        if distance <= effectRadius then
+        if distance <= Config.EffectRadius then
             -- Apply force to the vehicle
             local direction = (vehicleCoords - playerCoords)
             local normalizedDirection = direction / #direction -- Normalize direction vector
             ApplyForceToEntity(vehicle, 1, 
-                normalizedDirection.x * explosionForce, 
-                normalizedDirection.y * explosionForce, 
-                normalizedDirection.z * explosionForce * 10.0, -- Add some upward force
+                normalizedDirection.x * Config.ExplosionForce, 
+                normalizedDirection.y * Config.ExplosionForce, 
+                normalizedDirection.z * Config.ExplosionForce * 0.5, -- Add some upward force
                 0.0, 0.0, 0.0, 0, true, true, true, false, true)
 
             -- Make the vehicle potentially explode on impact
@@ -72,18 +82,20 @@ function pushNearbyNPCs(playerCoords)
             local pedCoords = GetEntityCoords(ped)
             local distance = #(pedCoords - playerCoords)
 
-            if distance <= effectRadius then
+            if distance <= Config.EffectRadius then
                 -- Apply force to the ped
                 local direction = (pedCoords - playerCoords)
                 local normalizedDirection = direction / #direction -- Normalize direction vector
                 ApplyForceToEntity(ped, 1, 
-                    normalizedDirection.x * explosionForce, 
-                    normalizedDirection.y * explosionForce, 
-                    normalizedDirection.z * explosionForce * 10.0, -- Add some upward force
+                    normalizedDirection.x * Config.ExplosionForce, 
+                    normalizedDirection.y * Config.ExplosionForce, 
+                    normalizedDirection.z * Config.ExplosionForce * 0.5, -- Add some upward force
                     0.0, 0.0, 0.0, 0, true, true, true, false, true)
 
-                -- Ragdoll the ped
-                SetPedToRagdoll(ped, 5000, 5000, 0, true, true, false)
+                -- Ragdoll the ped (if enabled)
+                if Config.EnablePedRagdoll then
+                    SetPedToRagdoll(ped, Config.RagdollTime, Config.RagdollTime, 0, true, true, false)
+                end
             end
         end
     end
